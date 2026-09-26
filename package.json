@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:isolated": "next dev --port 3001",
+    "dev:isolated": "node scripts/dev-isolated.mjs",
     "dev:demo": "node scripts/dev-demo.mjs",
     "build": "prisma generate && next build",
     "start": "next start",
