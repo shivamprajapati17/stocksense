@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stocksense-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: stocksense
+      POSTGRES_USER: stocksense
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-stocksense_local_only}
+    ports:
+      - "5434:5432"
+    volumes:
+      - stocksense_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stocksense -d stocksense"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  stocksense_postgres_data:

@@ -1,0 +1,39 @@
+{
+  "name": "stocksense",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:isolated": "next dev --port 3001",
+    "dev:demo": "node scripts/dev-demo.mjs",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "^6.31.0",
+    "@prisma/client": "^5.22.0",
+    "next": "^15.5.26",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "zod": "^3.24.2"
+  },
+  "overrides": {
+    "postcss": "^8.5.28"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.22.0",
+    "eslint-config-next": "^15.5.26",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

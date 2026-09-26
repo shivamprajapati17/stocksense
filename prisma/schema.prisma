@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id                String        @id @default(uuid()) @db.Uuid
+  name              String        @db.VarChar(255)
+  slug              String        @unique @db.VarChar(255)
+  subscriptionTier  String        @default("starter") @db.VarChar(50)
+  maxUsers          Int           @default(5)
+  maxWarehouses     Int           @default(1)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  users             User[]
+  products          Product[]
+  categories        ProductCategory[]
+  suppliers         Supplier[]
+  warehouses        Warehouse[]
+  receipts          Receipt[]
+  deliveries        DeliveryOrder[]
+  transfers         InternalTransfer[]
+  adjustments       StockAdjustment[]
+  ledger            StockLedger[]
+  auditLogs         AuditLog[]
+}
+
+model User {
+  id             String       @id @default(uuid()) @db.Uuid
+  clerkId        String       @unique @db.VarChar(255)
+  email          String       @db.VarChar(255)
+  firstName      String?      @db.VarChar(100)
+  lastName       String?      @db.VarChar(100)
+  avatarUrl      String?
+  role           String       @default("admin") @db.VarChar(50)
+  status         String       @default("active") @db.VarChar(50)
+  organizationId String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdReceipts Receipt[]   @relation("ReceiptCreator")
+  receivedReceipts Receipt[]  @relation("ReceiptReceiver")
+  createdDeliveries DeliveryOrder[] @relation("DeliveryCreator")
+  deliveredOrders DeliveryOrder[] @relation("DeliveryHandler")
+  createdTransfers InternalTransfer[] @relation("TransferCreator")
+  approvedTransfers InternalTransfer[] @relation("TransferApprover")
+  completedTransfers InternalTransfer[] @relation("TransferCompleter")
+  createdAdjustments StockAdjustment[] @relation("AdjustmentCreator")
+  approvedAdjustments StockAdjustment[] @relation("AdjustmentApprover")
+  ledgerEntries  StockLedger[]
+  auditLogs      AuditLog[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+model ProductCategory {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(120)
+  description    String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+  @@unique([organizationId, name])
+}
+
+model Supplier {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(255)
+  email          String?      @db.VarChar(255)
+  phone          String?      @db.VarChar(30)
+  address        String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  receipts       Receipt[]
+  @@index([organizationId, name])
+}
+
+model Product {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  sku            String       @db.VarChar(100)
+  name           String       @db.VarChar(255)
+  description    String?
+  categoryId     String?      @db.Uuid
+  unitOfMeasure  String       @default("units") @db.VarChar(50)
+  costPrice      Decimal      @default(0) @db.Decimal(12, 2)
+  sellingPrice   Decimal      @default(0) @db.Decimal(12, 2)
+  reorderLevel   Int          @default(10)
+  reorderQuantity Int         @default(50)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category       ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  stockLevels    StockLevel[]
+  receiptItems   ReceiptItem[]
+  deliveryItems  DeliveryItem[]
+  transferItems  TransferItem[]
+  adjustmentItems AdjustmentItem[]
+  ledgerEntries  StockLedger[]
+  @@unique([organizationId, sku])
+  @@index([organizationId, name])
+  @@index([categoryId])
+}
+
+model Warehouse {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String       @db.VarChar(255)
+  location       String?      @db.VarChar(255)
+  address        String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stockLevels    StockLevel[]
+  receipts       Receipt[]
+  deliveries     DeliveryOrder[]
+  outboundTransfers InternalTransfer[] @relation("TransferSource")
+  inboundTransfers InternalTransfer[] @relation("TransferDestination")
+  adjustments    StockAdjustment[]
+  ledgerEntries  StockLedger[]
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model StockLevel {
+  id                String    @id @default(uuid()) @db.Uuid
+  productId         String    @db.Uuid
+  warehouseId       String    @db.Uuid
+  availableQuantity Int       @default(0)
+  reservedQuantity  Int       @default(0)
+  damagedQuantity   Int       @default(0)
+  updatedAt         DateTime  @updatedAt
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse         Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+}
+
+model Receipt {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  receiptNumber  String       @db.VarChar(100)
+  supplierId     String?      @db.Uuid
+  warehouseId    String       @db.Uuid
+  purchaseOrderId String?     @db.VarChar(100)
+  status         String       @default("draft") @db.VarChar(50)
+  notes          String?
+  receiptDate    DateTime?
+  receivedById   String?      @db.Uuid
+  createdById    String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier       Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  warehouse      Warehouse    @relation(fields: [warehouseId], references: [id])
+  createdBy      User         @relation("ReceiptCreator", fields: [createdById], references: [id])
+  receivedBy     User?        @relation("ReceiptReceiver", fields: [receivedById], references: [id])
+  items          ReceiptItem[]
+  @@unique([organizationId, receiptNumber])
+  @@index([organizationId, status, receiptDate])
+}
+
+model ReceiptItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  receiptId        String   @db.Uuid
+  productId        String   @db.Uuid
+  quantityOrdered  Int
+  quantityReceived Int      @default(0)
+  unitPrice        Decimal  @default(0) @db.Decimal(12, 2)
+  notes            String?
+  receipt          Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  product          Product  @relation(fields: [productId], references: [id])
+}
+
+model DeliveryOrder {
+  id                  String       @id @default(uuid()) @db.Uuid
+  organizationId      String       @db.Uuid
+  deliveryNumber      String       @db.VarChar(100)
+  salesOrderId        String?      @db.VarChar(100)
+  warehouseId         String       @db.Uuid
+  status              String       @default("draft") @db.VarChar(50)
+  notes               String?
+  expectedDeliveryDate DateTime?
+  deliveredById       String?      @db.Uuid
+  createdById         String       @db.Uuid
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse           Warehouse    @relation(fields: [warehouseId], references: [id])
+  createdBy           User         @relation("DeliveryCreator", fields: [createdById], references: [id])
+  deliveredBy         User?        @relation("DeliveryHandler", fields: [deliveredById], references: [id])
+  items               DeliveryItem[]
+  @@unique([organizationId, deliveryNumber])
+  @@index([organizationId, status, createdAt])
+}
+
+model DeliveryItem {
+  id               String       @id @default(uuid()) @db.Uuid
+  deliveryOrderId  String       @db.Uuid
+  productId        String       @db.Uuid
+  quantityOrdered  Int
+  quantityPicked   Int          @default(0)
+  quantityDelivered Int         @default(0)
+  notes            String?
+  deliveryOrder    DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  product          Product      @relation(fields: [productId], references: [id])
+}
+
+model InternalTransfer {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  transferNumber  String       @db.VarChar(100)
+  fromWarehouseId String       @db.Uuid
+  toWarehouseId   String       @db.Uuid
+  status          String       @default("draft") @db.VarChar(50)
+  approvedAt      DateTime?
+  approvedById    String?      @db.Uuid
+  completedAt     DateTime?
+  completedById   String?      @db.Uuid
+  createdById     String       @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fromWarehouse  Warehouse    @relation("TransferSource", fields: [fromWarehouseId], references: [id])
+  toWarehouse    Warehouse    @relation("TransferDestination", fields: [toWarehouseId], references: [id])
+  createdBy      User         @relation("TransferCreator", fields: [createdById], references: [id])
+  approvedBy     User?        @relation("TransferApprover", fields: [approvedById], references: [id])
+  completedBy    User?        @relation("TransferCompleter", fields: [completedById], references: [id])
+  items          TransferItem[]
+  @@unique([organizationId, transferNumber])
+  @@index([organizationId, status])
+}
+
+model TransferItem {
+  id         String           @id @default(uuid()) @db.Uuid
+  transferId String           @db.Uuid
+  productId  String           @db.Uuid
+  quantity   Int
+  transfer   InternalTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product    Product          @relation(fields: [productId], references: [id])
+}
+
+model StockAdjustment {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  adjustmentNumber String      @db.VarChar(100)
+  warehouseId     String       @db.Uuid
+  status          String       @default("draft") @db.VarChar(50)
+  adjustmentType  String       @default("count") @db.VarChar(50)
+  notes           String?
+  approvedAt      DateTime?
+  approvedById    String?      @db.Uuid
+  createdById     String       @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse       Warehouse    @relation(fields: [warehouseId], references: [id])
+  createdBy       User         @relation("AdjustmentCreator", fields: [createdById], references: [id])
+  approvedBy      User?        @relation("AdjustmentApprover", fields: [approvedById], references: [id])
+  items           AdjustmentItem[]
+  @@unique([organizationId, adjustmentNumber])
+  @@index([organizationId, status])
+}
+
+model AdjustmentItem {
+  id              String          @id @default(uuid()) @db.Uuid
+  adjustmentId    String          @db.Uuid
+  productId       String          @db.Uuid
+  recordedQuantity Int
+  countedQuantity Int
+  variance        Int
+  reason          String?         @db.VarChar(255)
+  adjustment      StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product         Product         @relation(fields: [productId], references: [id])
+}
+
+model StockLedger {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  productId       String       @db.Uuid
+  warehouseId     String       @db.Uuid
+  transactionType String       @db.VarChar(50)
+  referenceId     String?      @db.VarChar(100)
+  referenceType   String?      @db.VarChar(50)
+  quantityChange  Int
+  beforeBalance   Int
+  afterBalance    Int
+  notes           String?
+  createdById     String?      @db.Uuid
+  createdAt       DateTime     @default(now())
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product         Product      @relation(fields: [productId], references: [id])
+  warehouse       Warehouse    @relation(fields: [warehouseId], references: [id])
+  createdBy       User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  @@index([organizationId, createdAt])
+  @@index([productId, warehouseId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  userId         String?      @db.Uuid
+  action         String       @db.VarChar(100)
+  entityType     String       @db.VarChar(100)
+  entityId       String?      @db.VarChar(100)
+  details        Json?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
